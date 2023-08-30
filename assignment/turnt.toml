@@ -1,0 +1,3 @@
+command = "python3 {filename} {args}"
+return_code = 0
+output.out = "-"
