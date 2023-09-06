@@ -154,10 +154,8 @@ def local_value_numbering(instr):
                     for i, a in enumerate(inst['args']):
                         inst['args'][i] = table[var2num[a]][1]
                 if const is not None:
-                    inst.update({
-                        'op': 'const',
-                        'value': const,
-                    })
+                    inst['op'] = 'const'
+                    inst['value'] = const
                     del inst['args']
             
             if dest:
