@@ -2,9 +2,9 @@ import json
 import sys
 from collections import defaultdict
 
+terminators = ['br', 'jmp', 'ret']
 #return list of blocks
 def get_blocks(instr):
-    terminators = ['br', 'jmp', 'ret']
     cur_block = []
     out = []
     for i in instr:
@@ -53,9 +53,9 @@ def local_opt(instr):
                 del instr[itr]
                 changed = True   
             else:
-                print(i, itr)
                 seen.add(i['dest'])
-                alive.remove(i['dest'])
+                if i['dest'] in alive:
+                    alive.remove(i['dest'])
         if i.get("args"):
             alive.update(i['args']) 
             # print(alive) 
@@ -65,6 +65,74 @@ def local_opt(instr):
         itr -= 1
     return changed
 
+def find_last_def(instr):
+    last_def = {}
+    for i in range(len(instr)-1,-1,-1):
+        if 'dest' not in instr[i] or instr[i]['dest'] in last_def:
+            continue
+        else:
+            last_def[instr[i]['dest']] = i
+    return last_def
+
+def local_value_numbering(instr):
+    #[value, var]
+    table = []
+    var2num = dict()
+    tableMapping = dict()
+    last_def = find_last_def(instr)
+    for i, inst in enumerate(instr):
+        # print(inst)
+        # val = ()
+        skip = False
+        if 'op' in inst and inst['op'] == 'const':
+                val = (inst["op"], inst['value'])
+        elif 'op' in inst and (inst['op'] in terminators or inst['op'] == 'call'):
+                skip = True
+        elif 'args' in inst:
+            lst = []
+            for a in inst['args']:
+                if a not in var2num:
+                    skip = True
+                    break               
+                else:
+                    lst.append(var2num[a])
+            val = (inst["op"], tuple(lst))
+        else:
+            skip = True
+        # print(tableMapping, table, var2num, inst)
+        if not skip:
+            # print(val)
+            if 'dest' in inst:
+                dest = inst["dest"]
+            else:
+                dest = None
+            if val in tableMapping:
+                num = tableMapping[val]
+                _ , var = table[num]
+                if inst['op'] != 'const':
+                    inst['args'] = [var]
+                    inst['op'] = 'id'
+            elif inst["op"] == 'id' and inst['args'][0] in var2num:
+                num = var2num[inst['args'][0]]
+                inst['args'] = [table[num][1]]
+                # print('op',inst)
+            else:
+                num = len(table)
+                if dest:
+                    if last_def[dest] < i:
+                        dest = dest+str(uuid())
+                        inst['dest'] = dest
+                # x = a + b ... x = 5 .. y = a+b (can't write y = id x)
+                # x'= a+b ... x = 5 ... y = x'
+                    tableMapping[val] = num
+                    table.append([val, dest])
+                if 'args' in inst:
+                    for i, a in enumerate(inst['args']):
+                        inst['args'][i] = table[var2num[a]][1]
+            if dest:
+                var2num[dest] = num
+		
+
 def iterate(program):
     run = True
     while run:
@@ -72,11 +140,13 @@ def iterate(program):
     blocks = get_blocks(program['instrs'])
     program['instrs'] = []
     for i, b in enumerate(blocks):
-        # print(i, b)
+        local_value_numbering(b)
         while run:
             run = local_opt(b)
         program['instrs'] += b
         run = True
+    while run:
+        run = trivial_dce(program['instrs'])
 
 #examples/test/tdce/simple.bril
 if __name__ == "__main__":
