@@ -117,7 +117,8 @@ def local_value_numbering(instr):
                     break               
                 else:
                     lst.append(var2num[a])
-            lst.sort()
+            if inst["op"] != 'div' and inst["op"] != 'sub':
+                lst.sort()
             val = (inst["op"], tuple(lst))
         else:
             skip = True
