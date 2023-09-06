@@ -3,6 +3,24 @@ import sys
 from collections import defaultdict
 
 terminators = ['br', 'jmp', 'ret']
+ops = {
+    'add': lambda a, b: a + b,
+    'mul': lambda a, b: a * b,
+    'sub': lambda a, b: a - b,
+    'div': lambda a, b: a // b,
+}
+#ins: ('add', (0,1))
+def calc(ops, ins, table):
+    if ins[0] in ops:
+        try:
+            a = table[ins[1][0]][0][1]
+            b = table[ins[1][1]][0][1]
+            # print(a,b,ops[ins[0]](a,b))
+            return ops[ins[0]](a,b)
+        except: 
+            return None
+    else:
+        return None
 #return list of blocks
 def get_blocks(instr):
     cur_block = []
@@ -33,6 +51,7 @@ def trivial_dce(instr):
     keep_ptr = 0
     while itr < len(instr):
         i = instr[itr]
+        # print(used)
         if i.get("dest") and i['dest'] not in used:
             changed = True
             del instr[itr]
@@ -77,7 +96,9 @@ def find_last_def(instr):
 def local_value_numbering(instr):
     #[value, var]
     table = []
+    #var to table row
     var2num = dict()
+    #val to table row
     tableMapping = dict()
     last_def = find_last_def(instr)
     for i, inst in enumerate(instr):
@@ -85,9 +106,9 @@ def local_value_numbering(instr):
         # val = ()
         skip = False
         if 'op' in inst and inst['op'] == 'const':
-                val = (inst["op"], inst['value'])
+            val = (inst["op"], inst['value'])
         elif 'op' in inst and (inst['op'] in terminators or inst['op'] == 'call'):
-                skip = True
+            skip = True
         elif 'args' in inst:
             lst = []
             for a in inst['args']:
@@ -96,6 +117,7 @@ def local_value_numbering(instr):
                     break               
                 else:
                     lst.append(var2num[a])
+            lst.sort()
             val = (inst["op"], tuple(lst))
         else:
             skip = True
@@ -118,6 +140,8 @@ def local_value_numbering(instr):
                 # print('op',inst)
             else:
                 num = len(table)
+                const = calc(ops, val, table)
+                
                 if dest:
                     if last_def[dest] < i:
                         dest = dest+str(uuid())
@@ -129,6 +153,13 @@ def local_value_numbering(instr):
                 if 'args' in inst:
                     for i, a in enumerate(inst['args']):
                         inst['args'][i] = table[var2num[a]][1]
+                if const is not None:
+                    inst.update({
+                        'op': 'const',
+                        'value': const,
+                    })
+                    del inst['args']
+            
             if dest:
                 var2num[dest] = num
 		
