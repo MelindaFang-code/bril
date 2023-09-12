@@ -29,6 +29,7 @@ def append_terminator(block_map):
                 b.append({'op':'jmp', "labels": [nxt]})
         nxt = name
 
+#return the predecessor and successors
 def cfg(block_map):
     predecessors = {name: set() for name in block_map}
     successors = {name: set() for name in block_map}
