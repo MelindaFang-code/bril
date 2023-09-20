@@ -85,6 +85,7 @@ def run(functions, dfType):
         print("in", inmap)
         print("out", outmap)
 
+#bril2json < ../examples/test/df/cond.bril | python3 dataflow.py defined
 if __name__ == "__main__":
     f = json.load(sys.stdin)
     dfType = sys.argv[1]
