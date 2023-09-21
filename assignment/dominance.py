@@ -2,7 +2,7 @@ import json
 import sys
 from collections import defaultdict, OrderedDict
 from utils import get_blocks
-from cfg import cfg, nameToBlock, append_terminator
+from cfg import cfg, nameToBlock, append_terminator, add_entry
 
 dominance_utilities = ['dominators', 'tree', 'frontier', 'test_dom']
 
@@ -23,9 +23,7 @@ def reverse_map(dom):
     return reverse
             
 def getEntry(name2block, predecessors):
-    for n in name2block:
-        if len(predecessors[n]) == 0:
-            return n
+    return list(name2block.keys())[-1]
 
 def findStrict(dom):
     strict = dom.copy()
@@ -125,6 +123,12 @@ def dominance_tree(dom):
         # print(b, tree[b])
     return tree
 
+def print_json(map):
+    print(json.dumps(
+        {k: sorted(list(v)) for k, v in map.items()},
+        indent=2, sort_keys=True,
+    ))
+
 def run(functions, domType):
     for func in functions['functions']:
         instructions = func['instrs']
@@ -132,15 +136,16 @@ def run(functions, domType):
         name2block = nameToBlock(workList)
         append_terminator(name2block)
         predecessors, successors = cfg(name2block)
+        add_entry(name2block, predecessors, successors)
         dom = dominators(name2block, predecessors, successors)
         if domType == "dominators":
-            print("dom", dom)
+            print_json(dom)
         elif domType == "frontier":
             front = dominance_frontier(dom, predecessors, successors)
-            print("frontier", front)
+            print_json(front)
         elif domType == "tree":
             tree = dominance_tree(dom)
-            print("dom_tree", tree)
+            print_json(tree)
         elif domType == 'test_dom':
             res = test_dominators(name2block, dom, predecessors, successors)
             if not res:

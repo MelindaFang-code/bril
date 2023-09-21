@@ -9,3 +9,15 @@ output."front.json" = "-"
 [envs.tree]
 command = "bril2json < {filename} | python3 ../../dom.py tree"
 output."tree.json" = "-"
+
+[envs.mydom]
+command = "bril2json < {filename} | python3 ../../../assignment/dominance.py dominators"
+output."dom.json" = "-"
+
+[envs.myfront]
+command = "bril2json < {filename} | python3 ../../../assignment/dominance.py frontier"
+output."front.json" = "-"
+
+[envs.mytree]
+command = "bril2json < {filename} | python3 ../../../assignment/dominance.py tree"
+output."tree.json" = "-"

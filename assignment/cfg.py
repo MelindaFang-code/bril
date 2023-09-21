@@ -1,6 +1,5 @@
 from collections import OrderedDict
 from utils import terminators
-#CFG: node = block, edge = 
 
 #create name2block map in reversed order
 def nameToBlock(block_list):
@@ -15,6 +14,19 @@ def nameToBlock(block_list):
         name2block[name] = b
         idx -= 1
     return name2block
+
+#ensure entry has no predecessor
+def add_entry(block_map, preds, succs):
+    lb = list(block_map.keys())[-1]
+    if len(preds[lb]) == 0:
+        return
+
+    e = 'entry1'
+    block_map[e] = []
+    preds[e] = set()
+    succs[e] = set([lb])
+
+    return 
 
 #traverse through the reversed ordered dict
 #keep track of the "next" label
