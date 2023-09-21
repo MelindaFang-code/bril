@@ -4,7 +4,7 @@ from collections import defaultdict, OrderedDict
 from utils import get_blocks
 from cfg import cfg, nameToBlock, append_terminator
 
-dominance_utilities = ['dominators', 'tree', 'frontier']
+dominance_utilities = ['dominators', 'tree', 'frontier', 'test_dom']
 
 def postOrder(name2Block, successors, entry, seen, order):
     seen.add(entry)
@@ -60,6 +60,34 @@ def dominators(name2block, predecessors, successors):
                 dom[vertex] = preds
     return dom
 
+#for each block, iterate through all the path from entry to that block
+# if an dominator A is not included in any of the path to B, the test fails
+def test_dominator_helper(successors, path, cur, A, B):
+    if cur == B:
+        if A not in path:
+            return False
+    ans = True
+    for s in successors[cur]:
+        if s not in path:
+            path.add(s)
+            ans = ans and test_dominator_helper(successors, path, s, A, B)
+            path.remove(s)
+    return ans
+    
+
+def test_dominators(name2block, dom, predecessors, successors):
+    entry = getEntry(name2block, predecessors)
+    # for b, d in dom.items():
+    
+    for b, ds in dom.items():
+        for d in ds: 
+            ans = test_dominator_helper(successors, set([entry]), entry, d, b)
+            if not ans:
+                print(b, d)
+                return False
+    return True
+
+
 #dominance frontier of a node d is the set of all nodes ni 
 #such that d dominates an immediate predecessor of ni, 
 #but d does not strictly dominate ni 
@@ -113,6 +141,11 @@ def run(functions, domType):
         elif domType == "tree":
             tree = dominance_tree(dom)
             print("dom_tree", tree)
+        elif domType == 'test_dom':
+            res = test_dominators(name2block, dom, predecessors, successors)
+            if not res:
+                return False
+        return True
         
 #bril2json < ../examples/test/df/cond.bril | python3 dominance.py dominators
 #bril2json < ../examples/test/dom/loopcond.bril | python3 dominance.py dominators
@@ -125,4 +158,5 @@ if __name__ == "__main__":
     if d not in dominance_utilities:
         print("unsupported dominance utilities")
     else:
-        run(f, d)
+        if not run(f, d):
+            print(d," failed")
