@@ -112,15 +112,12 @@ def dominance_tree(dom):
     for b in dom:
         tree[b] = rev_dom[b].copy()
         tree[b].remove(b)
-        # print(b, tree[b])
         for d in rev_dom[b]:
             for strict_dom in dom[d]:
                 if strict_dom == d or strict_dom not in tree[b]:
-                    # print(d, strict_dom)
                     continue
                 elif d in tree[b]:
                     tree[b].remove(d)
-        # print(b, tree[b])
     return tree
 
 def print_json(map):
