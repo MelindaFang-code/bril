@@ -1,7 +1,7 @@
 import json
 import sys
 from collections import defaultdict
-from utils import get_blocks
+from utils import get_blocks, get_defs
 from cfg import cfg, nameToBlock, append_terminator
 
 dfs = ['live', 'cpp', 'defined']
@@ -10,13 +10,6 @@ def union(set_list):
     for s in set_list:
         cur_set.update(s)
     return cur_set
-
-def getDefs(block):
-    defs = set()
-    for b in block:
-        if "dest" in b:
-            defs.add(b['dest'])
-    return defs
 
 def getUses(block):
     uses = set()
@@ -32,12 +25,12 @@ def getUses(block):
 
 def live_transfer(block, out_set):
     uses = getUses(block)
-    defs = getDefs(block)
+    defs = get_defs(block)
     uses.update(out_set-defs)
     return uses
 
 def defined_transfer(block, out_set):
-    defs = getDefs(block)
+    defs = get_defs(block)
     out = out_set.copy()
     out.update(defs)
     return out

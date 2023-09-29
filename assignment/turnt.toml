@@ -1,3 +1,12 @@
+[envs.default]
 command = "python3 {filename} {args}"
 return_code = 0
 output.out = "-"
+
+[envs.ssa]
+command = "bril2json < {filename} | python3 ../../SSA.py"
+output."ssa.out" = "-"
+
+[envs.ssa_golden]
+command = "bril2json < {filename}"
+output."ssa.out" = "-"

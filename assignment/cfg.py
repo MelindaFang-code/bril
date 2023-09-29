@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from utils import terminators
 
 #create name2block map in reversed order
@@ -20,12 +20,10 @@ def add_entry(block_map, preds, succs):
     lb = list(block_map.keys())[-1]
     if len(preds[lb]) == 0:
         return
-
     e = 'entry1'
     block_map[e] = []
     preds[e] = set()
     succs[e] = set([lb])
-
     return 
 
 #traverse through the reversed ordered dict
@@ -53,4 +51,11 @@ def cfg(block_map):
                 predecessors[l].add(name)
     return predecessors, successors
 
+def get_defs_map(block_map):
+    defs = defaultdict(set)
+    for name, b in block_map.items():
+        for ins in b:
+            if "dest" in ins:
+                defs[(ins['dest'], ins['type'])].add(name)
+    return defs
     

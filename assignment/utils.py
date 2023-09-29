@@ -27,3 +27,10 @@ def get_blocks(instr):
     if cur_block:
         out.append(cur_block)
     return out
+
+def get_defs(block):
+    defs = set()
+    for b in block:
+        if "dest" in b:
+            defs.add(b['dest'])
+    return defs
