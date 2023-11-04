@@ -1,0 +1,29 @@
+@myloop(x: int):int {
+  one: int = const 1;
+  y: int = add x one;
+  three: int = const 3;
+  cond: bool = lt x three;
+  br cond .small .big;
+.small:
+  z: int = sub y one;
+  ret z;
+.big:
+  z: int = add y one;
+  ret z;
+}
+
+@main() {
+    index: int = const 0;
+    one: int = const 1;
+    num: int = const 100;
+    cond: bool = lt index num;
+    result: int = const 0;
+.check:
+    br cond .loop .end;
+.loop:
+    result: int = call @myloop index;
+    index: int = add index one;
+    jmp .check;
+.end:
+    print result;
+}
