@@ -340,7 +340,6 @@ type State = {
 
   // For speculation: the state at the point where speculation began.
   specparent: State | null;
-  isSpeculation: boolean | null;
 };
 
 /**

@@ -1,5 +1,5 @@
-import * as bril from "./bril-ts/bril.js";
-import { readStdin, unreachable } from "./bril-ts/util.js";
+import * as bril from "./bril-ts/bril.ts";
+import { readStdin, unreachable } from "./bril-ts/util.ts";
 
 /**
  * An interpreter error to print to the console.
@@ -340,6 +340,11 @@ type State = {
 
   // For speculation: the state at the point where speculation began.
   specparent: State | null;
+
+  // flag for turning tracing on
+  isTracing: boolean | null;
+  hasTraced: boolean | null;
+  tracingLists: Array<Array<bril.Instruction>>;
 };
 
 /**
@@ -385,7 +390,10 @@ function evalCall(instr: bril.Operation, state: State): Action {
     icount: state.icount,
     lastlabel: null,
     curlabel: null,
-    specparent: null, // Speculation not allowed.
+    specparent: null,
+    isTracing: null,
+    tracingLists: [[]],
+    hasTraced: false,
   };
   let retVal = evalFunc(func, newState);
   state.icount = newState.icount;
@@ -441,7 +449,10 @@ function evalCall(instr: bril.Operation, state: State): Action {
  * instruction or "end" to terminate the function.
  */
 function evalInstr(instr: bril.Instruction, state: State): Action {
-  console.log(JSON.stringify(instr));
+  if (state.isTracing && instr.op !== "jmp" && instr.op !== "br") {
+    // TODO: check if this is correct
+    state.tracingLists[-1].push(instr);
+  }
   state.icount += BigInt(1);
 
   // Check that we have the right number of arguments.
@@ -643,6 +654,19 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
     case "br": {
       let cond = getBool(instr, state.env, 0);
+      // Guarantee 'br' always have a 'condition' before it
+      console.log(state.tracingLists);
+      state.tracingLists[-1].push({
+        dest: "condition",
+        op: "const",
+        type: "bool",
+        value: cond,
+      });
+      state.tracingLists[-1].push({
+        op: "guard",
+        args: ["condition"],
+        labels: ["failed"],
+      });
       if (cond) {
         return { action: "jump", label: getLabel(instr, 0) };
       } else {
@@ -812,11 +836,17 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
       return NEXT;
     }
   }
+
   unreachable(instr);
+
   throw error(`unhandled opcode ${(instr as any).op}`);
 }
 
 function evalFunc(func: bril.Function, state: State): Value | null {
+  if (func.name == "myloop" && state.hasTraced == false) {
+    state.isTracing = true;
+    state.tracingLists.push(new Array());
+  }
   for (let i = 0; i < func.instrs.length; ++i) {
     let line = func.instrs[i];
     if ("op" in line) {
@@ -889,6 +919,32 @@ function evalFunc(func: bril.Function, state: State): Value | null {
   // Reached the end of the function without hitting `ret`.
   if (state.specparent) {
     throw error(`implicit return in speculative state`);
+  }
+  if (func.name == "myloop") {
+    state.isTracing = false;
+    if (state.tracingLists.length >= 5) {
+      state.hasTraced = true;
+      // Find most common trace
+      let traceCount = new Map<string, number>();
+      let maxCount = 0;
+      let mostCommonTrace = new Array<bril.Instruction | bril.Label>();
+      for (let i = 0; i < state.tracingLists.length; i++) {
+        let stringRep = JSON.stringify(state.tracingLists[i]);
+        traceCount[stringRep] =
+          traceCount.get(stringRep) !== undefined
+            ? (traceCount.get(stringRep) as number)
+            : 1;
+        if (traceCount[stringRep] > maxCount) {
+          maxCount = traceCount[stringRep];
+          mostCommonTrace = state.tracingLists[i];
+        }
+      }
+
+      mostCommonTrace.unshift({ op: "speculate" });
+      mostCommonTrace.push({ op: "commit" });
+      mostCommonTrace.push({ label: "failed" });
+      func.instrs = mostCommonTrace.concat(func.instrs);
+    }
   }
   return null;
 }
@@ -989,6 +1045,9 @@ function evalProg(prog: bril.Program) {
     lastlabel: null,
     curlabel: null,
     specparent: null,
+    isTracing: null,
+    tracingLists: [[]],
+    hasTraced: false,
   };
   evalFunc(main, state);
 
