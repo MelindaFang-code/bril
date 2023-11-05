@@ -391,12 +391,14 @@ function evalCall(instr: bril.Operation, state: State): Action {
     lastlabel: null,
     curlabel: null,
     specparent: null,
-    isTracing: null,
-    tracingLists: [[]],
-    hasTraced: false,
+    isTracing: state.isTracing,
+    tracingLists: state.tracingLists,
+    hasTraced: state.hasTraced,
   };
   let retVal = evalFunc(func, newState);
   state.icount = newState.icount;
+  state.hasTraced = newState.hasTraced;
+  state.isTracing = newState.isTracing;
 
   // Dynamically check the function's return value and type.
   if (!("dest" in instr)) {
@@ -451,7 +453,7 @@ function evalCall(instr: bril.Operation, state: State): Action {
 function evalInstr(instr: bril.Instruction, state: State): Action {
   if (state.isTracing && instr.op !== "jmp" && instr.op !== "br") {
     // TODO: check if this is correct
-    state.tracingLists[-1].push(instr);
+    state.tracingLists[state.tracingLists.length - 1].push(instr);
   }
   state.icount += BigInt(1);
 
@@ -655,18 +657,29 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     case "br": {
       let cond = getBool(instr, state.env, 0);
       // Guarantee 'br' always have a 'condition' before it
-      console.log(state.tracingLists);
-      state.tracingLists[-1].push({
-        dest: "condition",
-        op: "const",
-        type: "bool",
-        value: cond,
-      });
-      state.tracingLists[-1].push({
-        op: "guard",
-        args: ["condition"],
-        labels: ["failed"],
-      });
+      if (state.isTracing) {
+        // console.log(state.tracingLists);
+        if (cond) {
+          state.tracingLists[state.tracingLists.length - 1].push({
+            dest: "condition",
+            op: "id",
+            type: "bool",
+            args: [instr.args![0]],
+          });
+        } else {
+          state.tracingLists[state.tracingLists.length - 1].push({
+            dest: "condition",
+            op: "not",
+            type: "bool",
+            args: [instr.args![0]],
+          });
+        }
+        state.tracingLists[state.tracingLists.length - 1].push({
+          op: "guard",
+          args: ["condition"],
+          labels: ["failed"],
+        });
+      }
       if (cond) {
         return { action: "jump", label: getLabel(instr, 0) };
       } else {
@@ -843,9 +856,12 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 }
 
 function evalFunc(func: bril.Function, state: State): Value | null {
+  console.log("start evalFunc", func.name, state.hasTraced);
   if (func.name == "myloop" && state.hasTraced == false) {
     state.isTracing = true;
+    console.log("will push new array");
     state.tracingLists.push(new Array());
+    // console.log(state.tracingLists);
   }
   for (let i = 0; i < func.instrs.length; ++i) {
     let line = func.instrs[i];
@@ -857,6 +873,66 @@ function evalFunc(func: bril.Function, state: State): Value | null {
       switch (action.action) {
         case "end": {
           // Return from this function.
+          if (func.name == "myloop") {
+            state.isTracing = false;
+            // console.log(state.tracingLists.length);
+            if (state.tracingLists.length >= 5 && state.hasTraced == false) {
+              console.log("has traced 5 times");
+              state.hasTraced = true;
+              // Find most common trace
+              let traceCount = new Map<string, number>();
+              let maxCount = 0;
+              let mostCommonTrace = new Array<bril.Instruction | bril.Label>();
+              for (let i = 0; i < state.tracingLists.length; i++) {
+                let stringRep = JSON.stringify(state.tracingLists[i]);
+                traceCount[stringRep] =
+                  traceCount.get(stringRep) !== undefined
+                    ? (traceCount.get(stringRep) as number)
+                    : 1;
+                if (traceCount[stringRep] > maxCount) {
+                  maxCount = traceCount[stringRep];
+                  mostCommonTrace = state.tracingLists[i];
+                }
+              }
+              // Optimization here
+              let changed = true;
+              while (changed) {
+                let used = new Set<bril.Ident>();
+                for (let j = 0; j < mostCommonTrace.length; j++) {
+                  let instr = mostCommonTrace[j];
+                  if ((instr as bril.Operation).args != undefined) {
+                    let args = (instr as bril.Operation).args!;
+                    args.forEach((arg) => {
+                      used.add(arg);
+                    });
+                  }
+                }
+                let newTrace = new Array();
+                for (let j = 0; j < mostCommonTrace.length; j++) {
+                  let instr = mostCommonTrace[j];
+                  if ((instr as bril.ValueInstruction).dest != undefined) {
+                    let dest = (instr as bril.ValueInstruction).dest!;
+                    if (used.has(dest)) {
+                      newTrace.push(instr);
+                    }
+                  } else if ((instr as bril.EffectOperation) != undefined) {
+                    newTrace.push(instr);
+                  }
+                }
+                if (newTrace.length == mostCommonTrace.length) {
+                  changed = false;
+                }
+                mostCommonTrace = newTrace;
+              }
+
+              mostCommonTrace.unshift({ op: "speculate" });
+              mostCommonTrace.splice(-1, 0, { op: "commit" });
+              mostCommonTrace.push({ label: "failed" });
+              console.log(mostCommonTrace);
+              func.instrs = mostCommonTrace.concat(func.instrs);
+              console.log(func.instrs);
+            }
+          }
           return action.ret;
         }
         case "speculate": {
@@ -919,32 +995,6 @@ function evalFunc(func: bril.Function, state: State): Value | null {
   // Reached the end of the function without hitting `ret`.
   if (state.specparent) {
     throw error(`implicit return in speculative state`);
-  }
-  if (func.name == "myloop") {
-    state.isTracing = false;
-    if (state.tracingLists.length >= 5) {
-      state.hasTraced = true;
-      // Find most common trace
-      let traceCount = new Map<string, number>();
-      let maxCount = 0;
-      let mostCommonTrace = new Array<bril.Instruction | bril.Label>();
-      for (let i = 0; i < state.tracingLists.length; i++) {
-        let stringRep = JSON.stringify(state.tracingLists[i]);
-        traceCount[stringRep] =
-          traceCount.get(stringRep) !== undefined
-            ? (traceCount.get(stringRep) as number)
-            : 1;
-        if (traceCount[stringRep] > maxCount) {
-          maxCount = traceCount[stringRep];
-          mostCommonTrace = state.tracingLists[i];
-        }
-      }
-
-      mostCommonTrace.unshift({ op: "speculate" });
-      mostCommonTrace.push({ op: "commit" });
-      mostCommonTrace.push({ label: "failed" });
-      func.instrs = mostCommonTrace.concat(func.instrs);
-    }
   }
   return null;
 }
@@ -1046,7 +1096,7 @@ function evalProg(prog: bril.Program) {
     curlabel: null,
     specparent: null,
     isTracing: null,
-    tracingLists: [[]],
+    tracingLists: [],
     hasTraced: false,
   };
   evalFunc(main, state);

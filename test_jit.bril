@@ -1,24 +1,27 @@
 @myloop(x: int):int {
   one: int = const 1;
   y: int = add x one;
-  three: int = const 3;
+  three: int = const 50;
   cond: bool = lt x three;
+  a1: int = const 8;
+  a2: int = add a1 a1;
+  a3: int = add a2 a2;
+  a4: int = add a3 a3;
   br cond .small .big;
 .small:
   z: int = sub y one;
   ret z;
 .big:
-  z: int = add y one;
+  z: int = add y a4;
   ret z;
 }
 
-@main() {
+@main(num: int) {
     index: int = const 0;
     one: int = const 1;
-    num: int = const 100;
-    cond: bool = lt index num;
     result: int = const 0;
 .check:
+    cond: bool = lt index num;
     br cond .loop .end;
 .loop:
     result: int = call @myloop index;
