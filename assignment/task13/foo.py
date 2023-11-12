@@ -122,6 +122,21 @@ def z3_expr(tree,vars=None):
             return v
     return interp(tree, get_var), vars
 
+def testing(exp1, exp2):
+    tree1 = parser.parse(exp1)
+    tree2 = parser.parse(exp2)
+    expr1, vars1 = z3_expr(tree1)
+    expr2, vars2 = z3_expr(tree2, vars1)
+
+    plain_vars = {k: v for k, v in vars1.items()
+              if not k.startswith('h')}
+    goal = z3.ForAll(
+        list(plain_vars.values()),  # need z3 objects
+        expr1 == expr2,  # ...the two expressions produce equal results.
+        )
+    print(solve(goal))
+
+
 if __name__ == "__main__":
     # sketching()
     # tree1 = parser.parse("x * 10")
@@ -131,16 +146,6 @@ if __name__ == "__main__":
     # print(expr1, vars1)
     # print(expr2, vars2)
 
-    tree1 = parser.parse("x * 10")
-    tree2 = parser.parse("get h1 [x * 3, x * 4, x * 10]")
-    expr1, vars1 = z3_expr(tree1)
-    expr2, vars2 = z3_expr(tree2, vars1)
-    print(expr2)
-
-    plain_vars = {k: v for k, v in vars1.items()
-              if not k.startswith('h')}
-    goal = z3.ForAll(
-        list(plain_vars.values()),  # need z3 objects
-        expr1 == expr2,  # ...the two expressions produce equal results.
-        )
-    print(solve(goal))
+    testing("x * 10", "get h1 [x * 3, x * 4, x * 10]")
+    testing("x * 6", "(get h1 [x * 3, x * 4, x * 10]) - (get h2 [x * 3, x * 4, x * 10])")
+    
