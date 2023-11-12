@@ -1,6 +1,7 @@
 ### Summary
 
-We implemented just-in-time compiler feature in `brili_jit.ts`. We traced the execution of a function called `myloop` for 5 times, find the most frequent trace, perform some optimizations on that, and plug it back to the front of that function. In order to roll-back when some conditions is not met, we replace all `br` operations with a `guard` operation. The guard operation takes a variable called `condition`, and the condition is set to either the same as the argument of `br`, or negation of that argument, if we traced the second branch. When the guard operation failed, it jumps to a `failed` label inserted at the beginning of the original instructions. When we plug the instructions back to the function, we insert an `speculate` operation at the beginning of the trace and a `commit` before the `ret` instruction of the trace.
+Collaborated with @collinzrj .
+We implemented just-in-time compiler feature in[`brili_jit.ts`](https://github.com/MelindaFang-code/bril/blob/main/brili_jit.ts). We traced the execution of a function called `myloop` for 5 times, find the most frequent trace, perform some optimizations on that, and plug it back to the front of that function. In order to roll-back when some conditions is not met, we replace all `br` operations with a `guard` operation. The guard operation takes a variable called `condition`, and the condition is set to either the same as the argument of `br`, or negation of that argument, if we traced the second branch. When the guard operation failed, it jumps to a `failed` label inserted at the beginning of the original instructions. When we plug the instructions back to the function, we insert an `speculate` operation at the beginning of the trace and a `commit` before the `ret` instruction of the trace.
 
 We implemented the dead code elimination optimization on the trace. If a variable is only used in one branch but not the other, when we eliminate the branch, we will be able to eliminate that variable and other variables that are only used by that. We have also written an example bril code that demonstrates the optimization. 
 
@@ -8,7 +9,7 @@ We implemented the dead code elimination optimization on the trace. If a variabl
 The most challenging part of this task is to figure out how just-in-time compiler works. Bril has provided good abstractions for us, the `speculate`, `guard`, and `commit` operations. With these operations, we can easily enter a speculation mode, and discard the computation when the assumption of the code is incorrect. It's also a little tricky to insert the trace back to the function, we spent a bit of time studying what should `guard` take as its argument.
 
 ### Testing
-We create a test case in "test_jit.bril". It has some dead code that could be eliminated in the function myloop if the program executes the most commonly used branch. Here is the pseudocode. We tried different inputs such as 45 and 100 that would cause the guard to be evaluated differently and compared both the results and the dynamic instruction count.
+We create a test case in ["test_jit.bril"](https://github.com/MelindaFang-code/bril/blob/main/test_jit.bril). It has some dead code that could be eliminated in the function myloop if the program executes the most commonly used branch. Here is the pseudocode. We tried different inputs such as 45 and 100 that would cause the guard to be evaluated differently and compared both the results and the dynamic instruction count.
 ```
 function myloop(x) {
   y = x + 1;
